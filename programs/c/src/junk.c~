@@ -1,0 +1,444 @@
+void set_vars1(eqm * e, const params * p, uint t, uint bgp)
+{
+  uint i,s,r,j;
+
+  e->b_t[t][3] = -(e->b_t[t][0]+e->b_t[t][1]+e->b_t[t][2]);
+
+  SET_ALL_V(e->ngdp_t[t],NC,0.0);
+  SET_ALL_V(e->rgdp_t[t],NC,0.0);
+  SET_ALL_V(e->ex_t[t],NC*NC,0.0);
+  SET_ALL_V(e->im_t[t],NC*NC,0.0);
+  SET_ALL_V(e->nx_t[t],NC*NC,0.0);
+  SET_ALL_V(e->exf_t[t],NC*NC,0.0);
+  SET_ALL_V(e->imf_t[t],NC*NC,0.0);
+  SET_ALL_V(e->nxf_t[t],NC*NC,0.0);
+  SET_ALL_V(e->exm_t[t],NC*NC,0.0);
+  SET_ALL_V(e->imm_t[t],NC*NC,0.0);
+  SET_ALL_V(e->nxm_t[t],NC*NC,0.0);
+  SET_ALL_V(e->exs_t[t],NC*NS*NC,0.0);
+  SET_ALL_V(e->ims_t[t],NC*NS*NC,0.0);
+  SET_ALL_V(e->nxs_t[t],NC*NS*NC,0.0);
+  SET_ALL_V(e->rex_t[t],NC*NC,0.0);
+  SET_ALL_V(e->rim_t[t],NC*NC,0.0);
+  SET_ALL_V(e->rexf_t[t],NC*NC,0.0);
+  SET_ALL_V(e->rimf_t[t],NC*NC,0.0);
+  SET_ALL_V(e->rexm_t[t],NC*NC,0.0);
+  SET_ALL_V(e->rimm_t[t],NC*NC,0.0);
+  SET_ALL_V(e->rexs_t[t],NC*NS*NC,0.0);
+  SET_ALL_V(e->rims_t[t],NC*NS*NC,0.0);
+
+  for(i=0; i<NC; i++)
+    {
+      // if npt using import adjustment costs, then compute ideal prices for M and F composites
+      if(!m_adj_cost || t==NT)
+	{
+	  for(s=0; s<NS; s++)
+	    {
+	      e->pm_t[t][i][s] = 0.0;
+	      if(noio_flag==0)
+		{
+		  for(j=0; j<NC; j++)
+		    {
+		      double tc = (1.0+p->tau_m_ts[t][i][s][j])*(1.0+p->ntb_m_ts[t][i][s][j]);
+		      e->pm_t[t][i][s] = e->pm_t[t][i][s] + 
+			pow(p->mu[i][s][j],1.0/(1.0-p->zeta[i][s])) * 
+			pow(tc*e->py_t[t][j][s],p->zeta[i][s]/(p->zeta[i][s]-1.0));
+		    }
+		  e->pm_t[t][i][s] = (1.0/p->M[i][s]) * 
+		    pow(e->pm_t[t][i][s],(p->zeta[i][s]-1.0)/p->zeta[i][s]);
+		}
+	    }
+	}
+
+      if(!f_adj_cost || t==NT)
+	{
+	  for(s=0; s<NS; s++)
+	    {
+	      e->p_t[t][i][s] = 0.0;
+	      for(j=0; j<NC; j++)
+		{
+		  double tc = (1.0+p->tau_f_ts[t][i][s][j])*(1.0+p->ntb_f_ts[t][i][s][j]);
+		  e->p_t[t][i][s] = e->p_t[t][i][s] + 
+		    pow(p->theta[i][s][j],1.0/(1.0-p->sig[i][s])) * 
+		    pow(tc*e->py_t[t][j][s],p->sig[i][s]/(p->sig[i][s]-1.0));
+		}
+	      e->p_t[t][i][s] = (1.0/p->H[i][s]) * 
+		pow(e->p_t[t][i][s],(p->sig[i][s]-1.0)/p->sig[i][s]);
+	    }
+	}
+
+      // now compute output
+      for(s=0; s<NS; s++)
+	{  
+	  e->va_t[t][i][s] = (p->a_ts[t][i][s]) *
+	    prod_va(e->k_t[t][i][s],e->l_t[t][i][s],p->A[i][s],p->alpha[i][s]);
+
+	  if(cobb_douglas_flag==0)
+	    {
+	      e->y_t[t][i][s] = e->va_t[t][i][s]/p->lam_va[i][s];
+	    }
+
+	  for(r=0; r<NS; r++)
+	    {
+	      if(cobb_douglas_flag)
+		{
+		  e->md_t[t][i][s][r] = (e->w_t[t][i]/e->pm_t[t][i][r])*
+		    (p->lam[i][s][r]/(1.0-p->alpha[i][s])/p->lam_va[i][s])*
+		    e->l_t[t][i][s];
+		}
+	      else
+		{
+		  e->md_t[t][i][s][r] = e->y_t[t][i][s]*p->lam[i][s][r];
+		}
+	    }
+
+	  if(cobb_douglas_flag)
+	    {
+	      e->y_t[t][i][s] = p->B[i][s] * prod_go(e->va_t[t][i][s],e->md_t[t][i][s],
+						     p->lam_va[i][s],p->lam[i][s]);
+	    }
+	  
+	  if(t<(NT-1) && l_adj_cost==1)
+	    {
+	      if(t>0)
+		{
+		  e->y_t[t][i][s] = e->y_t[t][i][s] - 
+		    p->etaL * (e->l_t[t][i][s]/e->l_t[t-1][i][s]-1.0) * 
+		    (e->l_t[t][i][s]/e->l_t[t-1][i][s]-1.0) * 
+		    e->l_t[t-1][i][s];
+		}
+	      else
+		{
+		  e->y_t[t][i][s] = e->y_t[t][i][s] - 
+		    p->etaL * (e->l_t[t][i][s]/p->l0[i][s]-1.0) * 
+		    (e->l_t[t][i][s]/p->l0[i][s]-1.0) * 
+		    p->l0[i][s];
+		}
+	    }
+	  if(t<(NT-1) && k_adj_cost==1)
+	    {
+	      if(t>0)
+		{
+		  e->y_t[t][i][s] = e->y_t[t][i][s] - 
+		    p->etaK * (e->k_t[t][i][s]/e->k_t[t-1][i][s]-1.0) * 
+		    (e->k_t[t][i][s]/e->k_t[t-1][i][s]-1.0) * 
+		    e->k_t[t-1][i][s];
+		}
+	      else
+		{
+		  e->y_t[t][i][s] = e->y_t[t][i][s] - 
+		    p->etaK * (e->k_t[t][i][s]/p->k0[i][s]-1.0) * 
+		    (e->k_t[t][i][s]/p->k0[i][s]-1.0) * 
+		    p->k0[i][s];
+		}
+	    }
+	  
+	  e->ngdp_t[t][i] = e->ngdp_t[t][i] + e->py_t[t][i][s]*e->y_t[t][i][s];
+	  e->rgdp_t[t][i] = e->rgdp_t[t][i] + e->y_t[t][i][s];
+	  e->lp_t[t][i][s] = e->va_t[t][i][s]/e->l_t[t][i][s];
+	}
+
+      e->ll_t[t][i] = e->l_t[t][i][0] + 
+	e->l_t[t][i][1] + 
+	e->l_t[t][i][2] + 
+	e->l_t[t][i][3] + 
+	e->l_t[t][i][4];
+
+      if(t<NT)
+	{
+	  for(s=0; s<NS; s++)
+	    {
+	      e->k_t[t+1][i][s] = (1.0-p->delta) * e->k_t[t][i][s] + e->is_t[t][i][s];
+	    }
+
+	  /*if(t==(NT-1) || k_adj_cost==0)
+	    {
+	      for(s=0; s<NS; s++)
+	      {
+		  e->k_t[t+1][i][s] = (1.0-p->delta) * e->k_t[t][i][s] + e->is_t[t][i][s];
+		}
+	    }
+	  else
+	    {
+	      for(s=0; s<NS; s++)
+		{
+		  e->k_t[t+1][i][s] = (1.0-p->delta) * e->k_t[t][i][s] + 
+		    phiK(e->is_t[t][i][s]/e->k_t[t][i][s],p->delta,p->etaK) * e->k_t[t][i][s];
+		}
+		}*/
+      
+	}
+      else
+	{
+	  for(s=0; s<NS; s++)
+	    {
+	      e->is_t[t][i][s] = p->delta * e->k_t[t][i][s];
+	    }
+	}
+      // NOTE: HARDCODED # OF SECTORS HERE!! LAZY!!
+      e->kk_t[t][i] = e->k_t[t][i][0] + 
+	e->k_t[t][i][1] + 
+	e->k_t[t][i][2] + 
+	e->k_t[t][i][3] +
+	e->k_t[t][i][4];
+
+      e->ii_t[t][i] = e->is_t[t][i][0] + 
+	e->is_t[t][i][1] + 
+	e->is_t[t][i][2] + 
+	e->is_t[t][i][3] + 
+	e->is_t[t][i][4];
+
+      // households' stochastic discount factor for dynamic firm's problem with adjustment costs
+      if(t>0)
+	{
+	  double mutp = muc(
+		e->c_t[t][i],
+		e->ll_t[t][i],
+		p->lbar[i],
+		p->eps[i][0],
+		p->rho,
+		p->phi[i],
+		p->psi,
+		2);
+	  double mut = muc(
+		  e->c_t[t-1][i],
+		  e->ll_t[t-1][i],
+		  p->lbar[i],
+		  p->eps[i][0],
+		  p->rho,
+		  p->phi[i],
+		  p->psi,
+		  2);
+
+	  e->Q_t[t-1][i] = p->beta[i] * (mutp / e->p_t[t][i][2]) / (mut / e->p_t[t-1][i][2]);
+	}
+      if(t==NT)
+	{
+	  e->Q_t[t][i] = p->beta[i];
+	}
+
+      e->pi_t[t][i] = 1.0/p->G[i];
+      for(s=1;s<NS; s++)
+	{
+	  e->pi_t[t][i] = e->pi_t[t][i] * pow(e->p_t[t][i][s]/p->eps[i][1][s],p->eps[i][1][s]);
+	}
+
+      for(s=0; s<NS; s++)
+	{
+	  e->i_t[t][i][s] = e->pi_t[t][i] * p->eps[i][1][s] * e->ii_t[t][i]/e->p_t[t][i][s];
+	  e->q_t[t][i][s] = e->c_t[t][i][s] + e->i_t[t][i][s];
+	  e->m_t[t][i][s] = e->md_t[t][i][0][s] + e->md_t[t][i][1][s] + e->md_t[t][i][2][s] + e->md_t[t][i][3][s] + e->md_t[t][i][4][s];
+
+	  if(!m_adj_cost || t==NT)
+	    {
+	      for(j=0; j<NC; j++)
+		{
+		  if(noio_flag)
+		    {
+		      e->m2_t[t][i][s][j] = 0.0;
+		    }
+		  else
+		    {
+		      double tc = (1.0+p->tau_m_ts[t][i][s][j])*(1.0+p->ntb_m_ts[t][i][s][j]);
+		      e->m2_t[t][i][s][j] = e->m_t[t][i][s] * 
+			pow(tc*e->py_t[t][j][s],1.0/(p->zeta[i][s]-1.0)) * 
+			pow(e->pm_t[t][i][s]*p->mu[i][s][j]*pow(p->M[i][s],p->zeta[i][s]),1.0/(1.0-p->zeta[i][s]));
+		    }
+		}
+	    }
+
+	  if(!f_adj_cost || t==NT)
+	    {
+	      for(j=0; j<NC; j++)
+		{
+		  double tc = (1.0+p->tau_f_ts[t][i][s][j])*(1.0+p->ntb_f_ts[t][i][s][j]);
+		  e->q2_t[t][i][s][j] = e->q_t[t][i][s] * 
+		    pow(tc*e->py_t[t][j][s],1.0/(p->sig[i][s]-1.0)) * 
+		    pow(e->p_t[t][i][s]*p->theta[i][s][j]*pow(p->H[i][s],p->sig[i][s]),1.0/(1.0-p->sig[i][s]));
+		}
+	    }
+	}
+
+      e->cpi_t[t][i] = 0.0;
+      e->cc_t[t][i] = 0.0;
+      for(s=0; s<NS; s++)
+	{
+	  e->cpi_t[t][i] = e->cpi_t[t][i] + e->p_t[t][i][s]*p->c0[i][s];
+	  e->cc_t[t][i] = e->cc_t[t][i]+e->c_t[t][i][s];
+	}
+      e->cpi_t[t][i] = e->cpi_t[t][i]/SUM(p->c0[i],NS);
+      
+      if(t == 0)
+	{
+	  e->rk_t[t][i] = p->r0[i] + p->delta;
+	}
+      else if(t==NT)
+	{
+	  if(i==0)
+	    {
+	      e->pb_t[t] = e->cpi_t[t][i]/(1.0+p->rss);
+	    }
+	  if(bgp)
+	    {
+	      e->rk_t[t][i] = e->pi_t[t][i]*e->cpi_t[t][0]/e->pb_t[t] - (1.0-p->delta)*e->pi_t[t][i];
+	    }
+	  else
+	    {
+	      //e->rk_t[t][i] = e->pi_t[t-1][i]*e->cpi_t[t][0]/e->pb_t[t-1] - (1.0-p->delta)*e->pi_t[t][i];
+	      e->rk_t[t][i] = e->pi_t[t-1][i]*e->cpi_t[t][0]/e->Q_t[t-1][i] - (1.0-p->delta)*e->pi_t[t][i];
+	    }
+	}
+      else
+	{
+	  //e->rk_t[t][i] = e->pi_t[t-1][i]*e->cpi_t[t][0]/e->pb_t[t-1] - (1.0-p->delta)*e->pi_t[t][i];
+	  e->rk_t[t][i] = e->pi_t[t-1][i]*e->cpi_t[t][0]/e->Q_t[t-1][i] - (1.0-p->delta)*e->pi_t[t][i];
+	}
+    }
+
+  for(i=0; i<NC; i++)
+    {
+      for(j=0; j<NC; j++)
+	{
+	  e->ngdp_t[t][i] = e->ngdp_t[t][i] - 
+	    e->py_t[t][j][0]*e->m2_t[t][i][0][j] - 
+	    e->py_t[t][j][1]*e->m2_t[t][i][1][j] - 
+	    e->py_t[t][j][2]*e->m2_t[t][i][2][j] -
+	    e->py_t[t][j][3]*e->m2_t[t][i][3][j] - 
+	    e->py_t[t][j][4]*e->m2_t[t][i][4][j];
+
+	  e->rgdp_t[t][i] = e->rgdp_t[t][i] - 
+	    e->m2_t[t][i][0][j] - 
+	    e->m2_t[t][i][1][j] - 
+	    e->m2_t[t][i][2][j] - 
+	    e->m2_t[t][i][3][j] - 
+	    e->m2_t[t][i][4][j];
+
+	  if(j!=i)
+	    {
+	      e->rer_t[t][i][j] = e->cpi_t[t][j]/e->cpi_t[t][i];
+	      for(s=0; s<NS; s++)
+		{
+		  double m = e->py_t[t][i][s]*e->m2_t[t][j][s][i];
+		  double f = e->py_t[t][i][s]*e->q2_t[t][j][s][i];
+	
+		  e->exs_t[t][i][s][j] = m+f;
+		  e->exm_t[t][i][j] = e->exm_t[t][i][j] + m;
+		  e->exf_t[t][i][j] = e->exf_t[t][i][j] + f;
+		  e->ex_t[t][i][j] = e->ex_t[t][i][j] + m+f;
+
+		  m = e->m2_t[t][j][s][i];
+		  f = e->q2_t[t][j][s][i];
+		  e->rexs_t[t][i][s][j] = m+f;
+		  e->rexm_t[t][i][j] = e->rexm_t[t][i][j] + m;
+		  e->rexf_t[t][i][j] = e->rexf_t[t][i][j] + f;
+		  e->rex_t[t][i][j] = e->rex_t[t][i][j] + m+f;
+
+		  m = e->py_t[t][j][s]*e->m2_t[t][i][s][j];
+		  f = e->py_t[t][j][s]*e->q2_t[t][i][s][j];
+		  e->ims_t[t][i][s][j] = m+f;
+		  e->imm_t[t][i][j] = e->imm_t[t][i][j] + m;
+		  e->imf_t[t][i][j] = e->imf_t[t][i][j] + f;
+		  e->im_t[t][i][j] = e->im_t[t][i][j] + m+f;
+
+		  m = e->m2_t[t][i][s][j];
+		  f = e->q2_t[t][i][s][j];
+		  e->rims_t[t][i][s][j] = m+f;
+		  e->rimm_t[t][i][j] = e->rimm_t[t][i][j] + m;
+		  e->rimf_t[t][i][j] = e->rimf_t[t][i][j] + f;
+		  e->rim_t[t][i][j] = e->rim_t[t][i][j] + m+f;
+
+		  e->nxs_t[t][i][s][j] = e->exs_t[t][i][s][j] - e->ims_t[t][i][s][j];
+		}
+	      e->nxm_t[t][i][j] = e->exm_t[t][i][j] - e->imm_t[t][i][j];
+	      e->nxf_t[t][i][j] = e->exf_t[t][i][j] - e->imf_t[t][i][j];
+	      e->nx_t[t][i][j] = e->ex_t[t][i][j] - e->im_t[t][i][j];
+	    }
+	  else
+	    {
+	      e->rer_t[t][i][j] = 1.0;
+	    }
+	}
+
+      e->iy_t[t][i] = e->pi_t[t][i]*e->ii_t[t][i]/e->ngdp_t[t][i];
+      e->lp_agg_t[t][i] = e->rgdp_t[t][i] / e->ll_t[t][i];
+    }
+
+  for(i=0; i<NC; i++)
+    {
+      e->ae_t[t][i] = 0.0;
+      e->te_t[t][i] = 0.0;
+      double w = 0.0;
+      double wt = 0.0;
+
+      for(s=0; s<NS; s++)
+	{
+	  e->aes_t[t][i][s] = 0.0;
+	  e->tes_t[t][i][s] = 0.0;
+	  double w2 = 0.0;
+	  double w2t = 0.0;
+
+	  for(j=0; j<NC; j++)
+	    {
+	      if(j!=i)
+		{
+		  double yt = log(e->m2_t[t][i][s][j] / e->m2_t[t][i][s][i]);
+		  double xt = log((e->py_t[t][i][s]/((1.0+p->tau_m_ts[t][i][s][j])*e->py_t[t][j][s])));
+		  double a0 = (1.0/(1.0-p->zeta[i][s]))*log(p->mu[i][s][j]/p->mu[i][s][i]);
+		  e->aes2_m_t[t][i][s][j] = (yt-a0)/xt;
+
+		  yt = log(e->q2_t[t][i][s][j] / e->q2_t[t][i][s][i]);
+		  xt = log((e->py_t[t][i][s]/((1.0+p->tau_f_ts[t][i][s][j])*e->py_t[t][j][s])));
+		  a0 = (1.0/(1.0-p->sig[i][s]))*log(p->theta[i][s][j]/p->theta[i][s][i]);
+		  e->aes2_f_t[t][i][s][j] = (yt-a0)/xt;
+
+		  e->aes2_t[t][i][s][j] = ( (e->aes2_m_t[t][i][s][j]*p->m02[i][s][j] + 
+					     e->aes2_f_t[t][i][s][j]*p->q02[i][s][j]) /
+					    (p->m02[i][s][j] + p->q02[i][s][j]) );
+
+		  double tmp3 = p->m02[i][s][j] + p->q02[i][s][j];
+		  e->aes_t[t][i][s] = e->aes_t[t][i][s] + e->aes2_t[t][i][s][j]*tmp3;
+		  w2 = w2 + tmp3;
+
+		  if(p->tau_m_ts[t][i][s][j]>0.0)
+		    {
+		      e->tes2_t[t][i][s][j] = -(log(e->ims_t[t][i][s][j]/eee0[0].ims_t[t][i][s][j])/
+						log(1.0+p->tau_m_ts[t][i][s][j]));
+		      e->tes_t[t][i][s] = e->tes_t[t][i][s] + e->tes2_t[t][i][s][j]*tmp3;
+		      w2t = w2t + tmp3;
+		    }
+		}
+	    }
+	  
+	  e->aes_t[t][i][s] = e->aes_t[t][i][s]/w2;
+	  e->ae_t[t][i] = e->ae_t[t][i] + e->aes_t[t][i][s]*w2;
+	  w = w + w2;
+
+	  if(w2t>1.e-6)
+	    {
+	      e->tes_t[t][i][s] = e->tes_t[t][i][s]/w2t;
+	      e->te_t[t][i] = e->te_t[t][i] + e->tes_t[t][i][s]*w2t;
+	      wt = wt + w2t;
+	    }
+
+	}
+      
+      e->ae_t[t][i] = e->ae_t[t][i]/w;
+      e->te_t[t][i] = e->te_t[t][i]/wt;
+    }
+
+  for(i=0; i<NC; i++)
+    {
+      e->realloc_t[t][i] = 0.0;
+      double wgt=0.0;
+      for(s=0; s<NS; s++)
+	{
+	  e->realloc2_t[t][i][s] = ( (e->l_t[t][i][s]/e->ll_t[t][i])-(eee0[0].l_t[t][i][s]/eee0[0].ll_t[t][i]) ) /
+	    ( (e->l_t[NT-1][i][s]/e->ll_t[NT-1][i])-(eee0[0].l_t[NT-1][i][s]/eee0[0].ll_t[NT-1][i]) );
+
+	  double wgt2=p->l0[i][s];
+	  e->realloc_t[t][i] = e->realloc_t[t][i] + wgt2*e->realloc2_t[t][i][s];
+	  wgt=wgt+wgt2;
+	}
+      e->realloc_t[t][i] = e->realloc_t[t][i]/wgt;
+    }
+}
