@@ -73,10 +73,10 @@ This header and source file are responsible for solving for the model’s equili
 <h4>3.3.5 exporters.h and exporters.c</h4>
 This header and source file contain the structures and functions that manage the heterogeneous-exporters portion of the model. The header file defines an exporter_vars struct that contains the value function, export participation rate, and threshold productivities, and the functions in the source file perform the steps needed to update these objects as the macroeconomy evolves (represented by equations 18 through 21 in the paper’s text).
 
-<h4>3.3.6 solver.h, solver.c, gnewton.h, and gnewton.c<h/4>
+<h4>3.3.6 solver.h, solver.c, gnewton.h, and gnewton.c</h4>
 These header and source files contain a parallelized implementation of the gnewton method for solving square nonlinear systems from the GNU GSL library. The key difference between my version of this method and the one contained in the GSL is that mine uses OpenMP parallelization to evaluate the Jacobian matrix, and then calls a parallel linear solver from the Intel MKL to solve for the Newton step implied by this matrix.
   
-<h3>3.4 Program output<h3>
+<h3>3.4 Program output</h3>
 The program creates several output files, all written to the programs/c/output folder. Note that the supplementary materials contain all of these output files, so there is no need for the user to re-run the C program if he or she wants to create different tables or figures using the output.
 
 <h4>3.4.1 Model parameters</h4>
@@ -94,7 +94,7 @@ The output of the various sensitivity analyses are contained in files with simil
 </ul>
 The z suffixes are listed in the order that the sensitivity analyses appear in Table 6.
 
-<h2>4. Python scripts (model results)<h2>
+<h2>4. Python scripts (model results)</h2>
 All of the Python scripts described in this section are also contained in the folder programs/python in the supplementary materials. They require the same codebase as the scripts described in section 2. These scripts can be run in any order, but they musts be run after the C program because they rely on its output.
   
 <h3>4.1 table_model_lr_changes.py</h3>
