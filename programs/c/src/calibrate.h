@@ -223,7 +223,7 @@ static inline double muc(const double c[NS], double l, double lbar, const double
     }
 
   return phi * eps[s] * pow(c[s],rho-1.0) * 
-    pow(DOT_PROD_EX(c,eps,NS,rho-1.0),psi*phi/rho-1.0) * 
+    pow(DOT_PROD_EX(c,eps,NS,rho),psi*phi/rho-1.0) * 
     pow(leisure,(1.0-phi)*psi);
 }
 
